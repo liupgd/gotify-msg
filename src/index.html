@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gotify 客户端</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Gotify 客户端配置</h1>
+        
+        <form id="configForm">
+            <div class="form-group">
+                <label for="serverUrl">服务器地址:</label>
+                <input type="text" id="serverUrl" placeholder="https://gotify.example.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="token">Token:</label>
+                <input type="password" id="token" placeholder="输入 Gotify Token" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="timeout">通知超时时间（秒）:</label>
+                <input type="number" id="timeout" min="1" value="5" required>
+            </div>
+            
+            <div class="button-group">
+                <button type="submit" id="saveBtn">保存配置</button>
+                <button type="button" id="startBtn">启动连接</button>
+                <button type="button" id="stopBtn" disabled>停止连接</button>
+            </div>
+        </form>
+        
+        <div id="status" class="status"></div>
+    </div>
+    
+    <script src="main.js"></script>
+</body>
+</html>
+

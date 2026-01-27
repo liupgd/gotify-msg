@@ -1,0 +1,34 @@
+{
+  "productName": "gotify-msg",
+  "version": "0.1.0",
+  "identifier": "com.gotify.client",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Gotify 客户端",
+        "width": 600,
+        "height": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "minimizable": true,
+        "maximizable": true,
+        "closable": true,
+        "skipTaskbar": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all"
+  },
+  "plugins": {}
+}
