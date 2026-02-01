@@ -10,12 +10,30 @@ pub async fn save_config(
     token: String,
     timeout_seconds: u64,
 ) -> Result<(), String> {
+    println!("=== save_config 函数被调用 ===");
+    eprintln!("参数: server_url={}, token={}, timeout_seconds={}", 
+              server_url, 
+              if token.is_empty() { "<empty>".to_string() } else { format!("{}...", &token[..token.len().min(4)]) },
+              timeout_seconds);
+    
     let config = AppConfig {
-        server_url,
-        token,
+        server_url: server_url.clone(),
+        token: token.clone(),
         timeout_seconds,
     };
-    config::save_config(&config).map_err(|e| e.to_string())
+    
+    eprintln!("准备保存配置: server_url={}, timeout_seconds={}", config.server_url, config.timeout_seconds);
+    
+    match config::save_config(&config) {
+        Ok(_) => {
+            eprintln!("配置保存成功！");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("配置保存失败: {}", e);
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
@@ -121,11 +139,21 @@ pub async fn create_notification_window(
         "timeout": timeout_seconds,
     });
     
-    // 使用延迟确保窗口已加载
+    // 使用延迟确保窗口已加载（增加延迟时间）
     tokio::spawn(async move {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        if let Some(w) = app_handle_clone.get_webview_window(&window_label_clone) {
-            let _ = w.emit("notification-data", &notification_data);
+        // 等待窗口完全加载
+        for _ in 0..10 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            if let Some(w) = app_handle_clone.get_webview_window(&window_label_clone) {
+                eprintln!("发送通知数据到窗口: {}", window_label_clone);
+                let result = w.emit("notification-data", &notification_data);
+                if result.is_ok() {
+                    eprintln!("✓ 通知数据已发送");
+                    break;
+                } else {
+                    eprintln!("✗ 发送失败，重试...");
+                }
+            }
         }
     });
 

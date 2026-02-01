@@ -103,35 +103,159 @@
     </div>
     
     <script>
-        const { getCurrentWindow } = window.__TAURI__.window;
-        const { listen } = window.__TAURI__.event;
+        // 等待 Tauri API 加载
+        async function initNotification() {
+            console.log('初始化通知窗口...');
+            console.log('window.__TAURI__:', window.__TAURI__);
+            
+            let getCurrentWindow, listen;
+            
+            // 获取 window API
+            if (window.__TAURI__?.window?.getCurrent) {
+                getCurrentWindow = window.__TAURI__.window.getCurrent;
+            } else if (window.__TAURI__?.core?.window?.getCurrent) {
+                getCurrentWindow = window.__TAURI__.core.window.getCurrent;
+            }
+            
+            // 获取 event API
+            if (window.__TAURI__?.event?.listen) {
+                listen = window.__TAURI__.event.listen;
+            } else if (window.__TAURI__?.core?.event?.listen) {
+                listen = window.__TAURI__.core.event.listen;
+            }
+            
+            console.log('getCurrentWindow:', typeof getCurrentWindow);
+            console.log('listen:', typeof listen);
+            
+            if (!listen) {
+                console.error('无法找到 listen 函数');
+                return;
+            }
+            
+            let countdownInterval = null;
+            let timeoutId = null;
+            let remainingSeconds = 5;
 
-        let countdownInterval = null;
-        let timeoutId = null;
-        let remainingSeconds = 5;
+            // 监听通知数据
+            try {
+                const listenResult = listen('notification-data', (event) => {
+                    console.log('收到通知数据事件:', event);
+                    const data = event.payload;
+                    console.log('通知数据:', data);
+                    
+                    document.getElementById('title').textContent = data.title || '通知';
+                    document.getElementById('message').textContent = data.message || '';
+                    remainingSeconds = data.timeout || 5;
 
-        // 监听通知数据
-        listen('notification-data', (event) => {
-            const data = event.payload;
-            document.getElementById('title').textContent = data.title || '通知';
-            document.getElementById('message').textContent = data.message || '';
-            remainingSeconds = data.timeout || 5;
+                    // 根据优先级设置背景
+                    const priority = data.priority || 0;
+                    const body = document.body;
+                    body.className = '';
+                    if (priority >= 7) {
+                        body.classList.add('priority-high');
+                    } else if (priority >= 4) {
+                        body.classList.add('priority-medium');
+                    } else {
+                        body.classList.add('priority-low');
+                    }
 
-            // 根据优先级设置背景
-            const priority = data.priority || 0;
-            const body = document.body;
-            body.className = '';
-            if (priority >= 7) {
-                body.classList.add('priority-high');
-            } else if (priority >= 4) {
-                body.classList.add('priority-medium');
-            } else {
-                body.classList.add('priority-low');
+                    // 开始倒计时
+                    startCountdown();
+                });
+                
+                // 如果返回 Promise，等待它
+                if (listenResult && typeof listenResult.then === 'function') {
+                    await listenResult;
+                    console.log('✓ 通知数据监听器已设置');
+                } else {
+                    console.log('✓ 通知数据监听器已设置（同步）');
+                }
+            } catch (error) {
+                console.error('设置通知数据监听失败:', error);
             }
 
-            // 开始倒计时
-            startCountdown();
-        });
+            function startCountdown() {
+                const countdownEl = document.getElementById('countdown');
+                
+                // 清除之前的定时器
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                }
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                
+                // 更新倒计时显示
+                function updateCountdown() {
+                    countdownEl.textContent = `${remainingSeconds}秒后关闭`;
+                    if (remainingSeconds <= 0) {
+                        closeWindow();
+                    } else {
+                        remainingSeconds--;
+                    }
+                }
+
+                updateCountdown();
+                countdownInterval = setInterval(updateCountdown, 1000);
+
+                // 设置自动关闭
+                timeoutId = setTimeout(() => {
+                    closeWindow();
+                }, remainingSeconds * 1000);
+            }
+
+            async function closeWindow() {
+                console.log('关闭窗口...');
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                
+                try {
+                    // 尝试多种方式关闭窗口
+                    if (getCurrentWindow) {
+                        const window = await getCurrentWindow();
+                        if (window && typeof window.close === 'function') {
+                            await window.close();
+                            console.log('✓ 窗口已关闭');
+                            return;
+                        }
+                    }
+                    
+                    // 尝试使用 core.window API
+                    if (window.__TAURI__?.core?.window?.getCurrent) {
+                        const w = await window.__TAURI__.core.window.getCurrent();
+                        if (w && typeof w.close === 'function') {
+                            await w.close();
+                            console.log('✓ 窗口已关闭（使用 core.window）');
+                            return;
+                        }
+                    }
+                    
+                    console.error('无法关闭窗口：所有方法都失败了');
+                } catch (error) {
+                    console.error('关闭窗口失败:', error);
+                    console.error('错误详情:', error.toString());
+                }
+            }
+
+            // OK 按钮点击事件
+            document.getElementById('okBtn').addEventListener('click', () => {
+                console.log('确定按钮被点击');
+                closeWindow();
+            });
+        }
+        
+        // 页面加载完成后初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initNotification);
+        } else {
+            initNotification();
+        }
 
         function startCountdown() {
             const countdownEl = document.getElementById('countdown');

@@ -18,9 +18,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            // 创建系统托盘
-            let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-            let show = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
+            // 创建系统托盘菜单
+            let quit = MenuItem::with_id(app, "quit", "退出", true, Option::<&str>::None)?;
+            let show = MenuItem::with_id(app, "show", "显示窗口", true, Option::<&str>::None)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
             
             let _tray = TrayIconBuilder::new()
