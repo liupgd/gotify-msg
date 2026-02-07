@@ -29,8 +29,11 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all"
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/app-icon.ico"
+    ]
   },
   "plugins": {}
 }
