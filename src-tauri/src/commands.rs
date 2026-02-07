@@ -45,6 +45,64 @@ pub async fn save_config(
     }
 }
 
+fn play_notification_sound() {
+    // 获取音频文件路径
+    let audio_path = if cfg!(debug_assertions) {
+        // 开发模式：使用项目目录
+        std::path::PathBuf::from("../src/notification.wav")
+    } else {
+        // 生产模式：使用应用资源目录
+        // 这里简化处理，实际应该使用 tauri::api::path 获取资源路径
+        std::path::PathBuf::from("notification.wav")
+    };
+
+    let audio_path_str = audio_path.to_string_lossy();
+
+    // 使用系统命令播放音频
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: 尝试使用 paplay (PulseAudio) 或 aplay (ALSA)
+        let play_commands = [
+            format!("paplay {}", audio_path_str),
+            format!("aplay {}", audio_path_str),
+            format!("ffplay -nodisp -autoexit {}", audio_path_str),
+        ];
+
+        for cmd in &play_commands {
+            if let Ok(_) = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(cmd)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                eprintln!("✓ 正在播放提示音: {}", cmd);
+                break;
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: 使用 afplay
+        let _ = std::process::Command::new("afplay")
+            .arg(&audio_path_str)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: 使用 PowerShell
+        let _ = std::process::Command::new("powershell")
+            .args(&["-c", &format!("(New-Object Media.SoundPlayer '{}').PlaySync()", audio_path_str)])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+}
+
 #[tauri::command]
 pub async fn load_config() -> Result<AppConfig, String> {
     config::load_config().map_err(|e| e.to_string())
@@ -178,6 +236,9 @@ pub async fn create_notification_window(
     .skip_taskbar(true)
     .build()
     .map_err(|e| e.to_string())?;
+
+    // 播放提示音
+    play_notification_sound();
 
     Ok(())
 }

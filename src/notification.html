@@ -149,11 +149,76 @@
                 body.classList.add('priority-low');
             }
             
+            // 播放提示音
+            playNotificationSound();
+            
             // 启动倒计时
             startCountdown(data.timeout);
             
-            // 绑定确定按钮
-            document.getElementById('okBtn').addEventListener('click', closeWindow);
+            // 绑定确定按钮（播放音频 + 关闭窗口）
+            document.getElementById('okBtn').addEventListener('click', () => {
+                // 用户点击时再次尝试播放（绕开自动播放限制）
+                playNotificationSound();
+                closeWindow();
+            });
+        }
+
+        // 播放提示音
+        function playNotificationSound() {
+            try {
+                console.log('尝试播放提示音...');
+                console.log('当前页面 URL:', window.location.href);
+                
+                // 获取音频文件的绝对路径
+                const audioPath = new URL('notification.wav', window.location.href).href;
+                console.log('音频文件路径:', audioPath);
+                
+                // 创建音频元素并添加到 DOM（某些浏览器需要）
+                const audio = document.createElement('audio');
+                audio.src = audioPath;
+                audio.volume = 0.5;
+                audio.preload = 'auto';
+                
+                // 监听加载事件
+                audio.addEventListener('canplaythrough', () => {
+                    console.log('音频已加载，开始播放...');
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined) {
+                        playPromise.then(() => {
+                            console.log('✓ 提示音播放成功');
+                        }).catch(err => {
+                            console.log('提示音播放失败:', err.name, err.message);
+                            // 如果是自动播放策略问题，尝试静音后播放
+                            if (err.name === 'NotAllowedError') {
+                                console.log('尝试静音播放...');
+                                audio.muted = true;
+                                audio.play().then(() => {
+                                    audio.muted = false;
+                                    console.log('✓ 静音后播放成功');
+                                }).catch(e => console.log('静音播放也失败:', e));
+                            }
+                        });
+                    }
+                }, { once: true });
+                
+                audio.addEventListener('error', (e) => {
+                    console.error('音频加载失败:', e);
+                    console.error('音频 src:', audio.src);
+                    console.error('错误代码:', audio.error ? audio.error.code : 'unknown');
+                    console.error('错误信息:', audio.error ? audio.error.message : 'unknown');
+                });
+                
+                // 将音频元素添加到 DOM（隐藏）
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
+                
+                // 强制加载
+                console.log('开始加载音频...');
+                audio.load();
+                
+            } catch (error) {
+                console.error('创建音频对象失败:', error);
+            }
         }
 
         let countdownInterval = null;
