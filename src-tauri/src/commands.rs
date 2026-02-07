@@ -3,6 +3,7 @@ use crate::gotify::GotifyConnection;
 use crate::AppState;
 use tauri::{AppHandle, Manager, Emitter};
 use std::sync::Arc;
+use anyhow::Result;
 
 #[tauri::command]
 pub async fn save_config(
@@ -10,6 +11,14 @@ pub async fn save_config(
     token: String,
     timeout_seconds: u64,
 ) -> Result<(), String> {
+     // 验证输入参数
+     if timeout_seconds == 0 {
+         return Err("超时时间必须大于 0".to_string());
+     }
+
+     if timeout_seconds > 300 {
+         return Err("超时时间不能超过 300 秒".to_string());
+     }
     println!("=== save_config 函数被调用 ===");
     eprintln!("参数: server_url={}, token={}, timeout_seconds={}", 
               server_url, 
@@ -48,6 +57,26 @@ pub async fn start_gotify_connection(
     token: String,
     timeout_seconds: u64,
 ) -> Result<(), String> {
+     // 验证输入参数
+     if server_url.trim().is_empty() {
+         return Err("服务器地址不能为空".to_string());
+     }
+
+     if token.trim().is_empty() {
+         return Err("Token 不能为空".to_string());
+     }
+
+     if timeout_seconds == 0 {
+         return Err("超时时间必须大于 0".to_string());
+     }
+
+     // 基本格式验证
+     if !server_url.starts_with("http://") && 
+        !server_url.starts_with("https://") && 
+        !server_url.starts_with("ws://") && 
+        !server_url.starts_with("wss://") {
+         return Err("服务器地址必须以 http://, https://, ws:// 或 wss:// 开头".to_string());
+     }
     // 先停止现有连接
     stop_gotify_connection(app_handle.clone()).await?;
 
@@ -91,6 +120,18 @@ pub async fn create_notification_window(
     priority: Option<i32>,
     timeout_seconds: u64,
 ) -> Result<(), String> {
+     // 验证输入参数
+     if title.trim().is_empty() && message.trim().is_empty() {
+         return Err("标题和消息不能同时为空".to_string());
+     }
+
+     if timeout_seconds == 0 {
+         return Err("超时时间必须大于 0".to_string());
+     }
+
+     if timeout_seconds > 300 {
+         return Err("超时时间不能超过 300 秒".to_string());
+     }
     // 获取主窗口位置和大小来计算通知窗口位置
     let main_window = app_handle.get_webview_window("main");
     let (screen_width, screen_height) = if let Some(window) = main_window {
@@ -114,10 +155,19 @@ pub async fn create_notification_window(
         .unwrap()
         .as_secs());
 
+    // 将数据编码到 URL 参数中，确保页面加载时就能获取
+    let url = format!(
+        "notification.html?title={}&message={}&priority={}&timeout={}",
+        urlencoding::encode(&title),
+        urlencoding::encode(&message),
+        priority.unwrap_or(0),
+        timeout_seconds
+    );
+
     let _window = tauri::webview::WebviewWindowBuilder::new(
         &app_handle,
         window_label.clone(),
-        tauri::WebviewUrl::App("notification.html".into()),
+        tauri::WebviewUrl::App(url.into()),
     )
     .title("")
     .inner_size(window_width as f64, window_height as f64)
@@ -128,34 +178,6 @@ pub async fn create_notification_window(
     .skip_taskbar(true)
     .build()
     .map_err(|e| e.to_string())?;
-
-    // 等待窗口加载完成后发送消息数据
-    let app_handle_clone = app_handle.clone();
-    let window_label_clone = window_label.clone();
-    let notification_data = serde_json::json!({
-        "title": title,
-        "message": message,
-        "priority": priority,
-        "timeout": timeout_seconds,
-    });
-    
-    // 使用延迟确保窗口已加载（增加延迟时间）
-    tokio::spawn(async move {
-        // 等待窗口完全加载
-        for _ in 0..10 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            if let Some(w) = app_handle_clone.get_webview_window(&window_label_clone) {
-                eprintln!("发送通知数据到窗口: {}", window_label_clone);
-                let result = w.emit("notification-data", &notification_data);
-                if result.is_ok() {
-                    eprintln!("✓ 通知数据已发送");
-                    break;
-                } else {
-                    eprintln!("✗ 发送失败，重试...");
-                }
-            }
-        }
-    });
 
     Ok(())
 }

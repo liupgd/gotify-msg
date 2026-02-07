@@ -19,6 +19,7 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .notification-container {
@@ -33,60 +34,72 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            min-height: 24px;
         }
 
         .notification-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .countdown {
-            font-size: 12px;
+            font-size: 11px;
             opacity: 0.8;
             margin-left: 10px;
+            white-space: nowrap;
         }
 
         .notification-message {
-            font-size: 14px;
-            line-height: 1.5;
+            font-size: 13px;
+            line-height: 1.4;
             flex: 1;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             word-wrap: break-word;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .notification-footer {
             display: flex;
             justify-content: flex-end;
             gap: 10px;
+            min-height: 32px;
         }
 
         button {
-            padding: 8px 20px;
+            padding: 6px 16px;
             border: none;
-            border-radius: 6px;
-            font-size: 14px;
+            border-radius: 4px;
+            font-size: 13px;
             font-weight: 500;
             cursor: pointer;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.25);
             color: white;
-            transition: background 0.3s;
+            transition: background 0.2s;
         }
 
         button:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.35);
+        }
+
+        button:active {
+            background: rgba(255, 255, 255, 0.15);
         }
 
         .priority-high {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
         }
 
         .priority-medium {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%) !important;
         }
 
         .priority-low {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
         }
     </style>
 </head>
@@ -103,151 +116,122 @@
     </div>
     
     <script>
-        // 等待 Tauri API 加载
-        async function initNotification() {
+        // 从 URL 参数获取数据
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                title: decodeURIComponent(params.get('title') || '通知'),
+                message: decodeURIComponent(params.get('message') || ''),
+                priority: parseInt(params.get('priority') || '0'),
+                timeout: parseInt(params.get('timeout') || '5')
+            };
+        }
+
+        // 初始化通知
+        function initNotification() {
             console.log('初始化通知窗口...');
-            console.log('window.__TAURI__:', window.__TAURI__);
             
-            let getCurrentWindow, listen;
+            const data = getUrlParams();
+            console.log('从 URL 获取的数据:', data);
             
-            // 获取 window API
-            if (window.__TAURI__?.window?.getCurrent) {
-                getCurrentWindow = window.__TAURI__.window.getCurrent;
-            } else if (window.__TAURI__?.core?.window?.getCurrent) {
-                getCurrentWindow = window.__TAURI__.core.window.getCurrent;
+            // 设置标题和消息
+            document.getElementById('title').textContent = data.title;
+            document.getElementById('message').textContent = data.message;
+            
+            // 根据优先级设置背景
+            const body = document.body;
+            body.className = '';
+            if (data.priority >= 7) {
+                body.classList.add('priority-high');
+            } else if (data.priority >= 4) {
+                body.classList.add('priority-medium');
+            } else {
+                body.classList.add('priority-low');
             }
             
-            // 获取 event API
-            if (window.__TAURI__?.event?.listen) {
-                listen = window.__TAURI__.event.listen;
-            } else if (window.__TAURI__?.core?.event?.listen) {
-                listen = window.__TAURI__.core.event.listen;
+            // 启动倒计时
+            startCountdown(data.timeout);
+            
+            // 绑定确定按钮
+            document.getElementById('okBtn').addEventListener('click', closeWindow);
+        }
+
+        let countdownInterval = null;
+        let timeoutId = null;
+
+        function startCountdown(seconds) {
+            const countdownEl = document.getElementById('countdown');
+            let remaining = seconds;
+            
+            // 清除之前的定时器
+            clearTimers();
+            
+            // 更新倒计时显示
+            function updateDisplay() {
+                countdownEl.textContent = remaining + '秒后关闭';
             }
             
-            console.log('getCurrentWindow:', typeof getCurrentWindow);
-            console.log('listen:', typeof listen);
+            updateDisplay();
             
-            if (!listen) {
-                console.error('无法找到 listen 函数');
-                return;
-            }
-            
-            let countdownInterval = null;
-            let timeoutId = null;
-            let remainingSeconds = 5;
-
-            // 监听通知数据
-            try {
-                const listenResult = listen('notification-data', (event) => {
-                    console.log('收到通知数据事件:', event);
-                    const data = event.payload;
-                    console.log('通知数据:', data);
-                    
-                    document.getElementById('title').textContent = data.title || '通知';
-                    document.getElementById('message').textContent = data.message || '';
-                    remainingSeconds = data.timeout || 5;
-
-                    // 根据优先级设置背景
-                    const priority = data.priority || 0;
-                    const body = document.body;
-                    body.className = '';
-                    if (priority >= 7) {
-                        body.classList.add('priority-high');
-                    } else if (priority >= 4) {
-                        body.classList.add('priority-medium');
-                    } else {
-                        body.classList.add('priority-low');
-                    }
-
-                    // 开始倒计时
-                    startCountdown();
-                });
-                
-                // 如果返回 Promise，等待它
-                if (listenResult && typeof listenResult.then === 'function') {
-                    await listenResult;
-                    console.log('✓ 通知数据监听器已设置');
-                } else {
-                    console.log('✓ 通知数据监听器已设置（同步）');
-                }
-            } catch (error) {
-                console.error('设置通知数据监听失败:', error);
-            }
-
-            function startCountdown() {
-                const countdownEl = document.getElementById('countdown');
-                
-                // 清除之前的定时器
-                if (countdownInterval) {
-                    clearInterval(countdownInterval);
-                }
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-                
-                // 更新倒计时显示
-                function updateCountdown() {
-                    countdownEl.textContent = `${remainingSeconds}秒后关闭`;
-                    if (remainingSeconds <= 0) {
-                        closeWindow();
-                    } else {
-                        remainingSeconds--;
-                    }
-                }
-
-                updateCountdown();
-                countdownInterval = setInterval(updateCountdown, 1000);
-
-                // 设置自动关闭
-                timeoutId = setTimeout(() => {
+            // 每秒更新
+            countdownInterval = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) {
+                    clearTimers();
                     closeWindow();
-                }, remainingSeconds * 1000);
-            }
-
-            async function closeWindow() {
-                console.log('关闭窗口...');
-                if (countdownInterval) {
-                    clearInterval(countdownInterval);
-                    countdownInterval = null;
+                } else {
+                    updateDisplay();
                 }
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                    timeoutId = null;
+            }, 1000);
+            
+            // 设置自动关闭
+            timeoutId = setTimeout(() => {
+                closeWindow();
+            }, seconds * 1000);
+        }
+
+        function clearTimers() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+        }
+
+        async function closeWindow() {
+            console.log('关闭窗口...');
+            clearTimers();
+            
+            try {
+                // 尝试使用 Tauri API 关闭窗口
+                if (window.__TAURI__) {
+                    // Tauri v2 使用 getCurrentWindow()
+                    const { getCurrentWindow } = window.__TAURI__.window;
+                    if (getCurrentWindow) {
+                        const win = getCurrentWindow();
+                        if (win?.close) {
+                            await win.close();
+                            console.log('✓ 窗口已关闭 (Tauri API)');
+                            return;
+                        }
+                    }
                 }
                 
+                // 如果 Tauri API 不可用，尝试使用 window.close()
+                window.close();
+                console.log('✓ 窗口已关闭 (window.close)');
+            } catch (error) {
+                console.error('关闭窗口失败:', error);
+                // 最后的备用方案
                 try {
-                    // 尝试多种方式关闭窗口
-                    if (getCurrentWindow) {
-                        const window = await getCurrentWindow();
-                        if (window && typeof window.close === 'function') {
-                            await window.close();
-                            console.log('✓ 窗口已关闭');
-                            return;
-                        }
-                    }
-                    
-                    // 尝试使用 core.window API
-                    if (window.__TAURI__?.core?.window?.getCurrent) {
-                        const w = await window.__TAURI__.core.window.getCurrent();
-                        if (w && typeof w.close === 'function') {
-                            await w.close();
-                            console.log('✓ 窗口已关闭（使用 core.window）');
-                            return;
-                        }
-                    }
-                    
-                    console.error('无法关闭窗口：所有方法都失败了');
-                } catch (error) {
-                    console.error('关闭窗口失败:', error);
-                    console.error('错误详情:', error.toString());
+                    window.close();
+                } catch (e) {
+                    console.error('window.close 也失败了:', e);
                 }
             }
-
-            // OK 按钮点击事件
-            document.getElementById('okBtn').addEventListener('click', () => {
-                console.log('确定按钮被点击');
-                closeWindow();
-            });
         }
         
         // 页面加载完成后初始化
@@ -256,42 +240,6 @@
         } else {
             initNotification();
         }
-
-        function startCountdown() {
-            const countdownEl = document.getElementById('countdown');
-            
-            // 更新倒计时显示
-            function updateCountdown() {
-                countdownEl.textContent = `${remainingSeconds}秒后关闭`;
-                if (remainingSeconds <= 0) {
-                    closeWindow();
-                } else {
-                    remainingSeconds--;
-                }
-            }
-
-            updateCountdown();
-            countdownInterval = setInterval(updateCountdown, 1000);
-
-            // 设置自动关闭
-            timeoutId = setTimeout(() => {
-                closeWindow();
-            }, remainingSeconds * 1000);
-        }
-
-        function closeWindow() {
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-            }
-            getCurrentWindow().close();
-        }
-
-        // OK 按钮点击事件
-        document.getElementById('okBtn').addEventListener('click', closeWindow);
     </script>
 </body>
 </html>
-

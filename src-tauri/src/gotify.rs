@@ -5,6 +5,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use futures_util::StreamExt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use anyhow::{Result, anyhow};
 
 pub struct GotifyConnection {
     app_handle: AppHandle,
@@ -21,7 +22,7 @@ impl GotifyConnection {
         }
     }
 
-    pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn start(&self) -> Result<()> {
         let mut running = self.running.lock().await;
         if *running {
             return Ok(());
@@ -40,34 +41,29 @@ impl GotifyConnection {
                     break;
                 }
 
-                // 检查 token 是否为空
-                if config.token.is_empty() {
-                    eprintln!("错误: Token 为空，无法连接");
-                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                    continue;
-                }
+                 // 检查 token 是否为空
+                 if config.token.is_empty() {
+                     eprintln!("错误: Token 为空，无法连接");
+                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                     continue;
+                 }
+                 
+                  // 验证和构造 WebSocket URL
+                  let ws_url = match construct_websocket_url(&config.server_url, &config.token) {
+                      Ok(url) => url,
+                      Err(e) => {
+                          eprintln!("URL 构造失败: {}", e);
+                          tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                          continue;
+                      }
+                  };
                 
-                // 确保 URL 格式正确，并对 token 进行 URL 编码
-                let base_url = config.server_url.trim_end_matches('/');
-                let encoded_token = urlencoding::encode(&config.token).to_string();
-                
-                let ws_url = if base_url.starts_with("https://") {
-                    format!("{}/stream?token={}", base_url.replace("https://", "wss://"), encoded_token)
-                } else if base_url.starts_with("http://") {
-                    format!("{}/stream?token={}", base_url.replace("http://", "ws://"), encoded_token)
-                } else {
-                    format!("wss://{}/stream?token={}", base_url, encoded_token)
-                };
-                
-                eprintln!("尝试连接到 Gotify WebSocket");
-                eprintln!("服务器地址: {}", base_url);
-                eprintln!("Token 长度: {} 字符", config.token.len());
-                if config.token.len() >= 4 {
-                    eprintln!("Token 前缀: {}...", &config.token.chars().take(4).collect::<String>());
-                }
-                // 在日志中隐藏完整 token
-                let safe_url = ws_url.replace(&encoded_token, "***");
-                eprintln!("WebSocket URL: {}", safe_url);
+                 eprintln!("尝试连接到 Gotify WebSocket");
+                 eprintln!("服务器地址: {}", config.server_url);
+                 eprintln!("Token 长度: {} 字符", config.token.len());
+                 if config.token.len() >= 4 {
+                     eprintln!("Token 前缀: {}...", &config.token.chars().take(4).collect::<String>());
+                 }
                 
                 match connect_async(&ws_url).await {
                     Ok((ws_stream, _)) => {
@@ -141,10 +137,40 @@ impl GotifyConnection {
         Ok(())
     }
 
-    pub async fn stop(&self) {
-        let mut running = self.running.lock().await;
-        *running = false;
+     pub async fn stop(&self) {
+         let mut running = self.running.lock().await;
+         *running = false;
+     }
+ }
+
+fn construct_websocket_url(server_url: &str, token: &str) -> Result<String> {
+    if server_url.is_empty() {
+        return Err(anyhow!("服务器地址不能为空"));
     }
+
+    if token.is_empty() {
+        return Err(anyhow!("Token 不能为空"));
+    }
+
+    // 清理 URL 并确保格式正确
+    let base_url = server_url.trim_end_matches('/');
+    let encoded_token = urlencoding::encode(token).to_string();
+
+    let ws_url = if base_url.starts_with("https://") {
+        format!("{}/stream?token={}", base_url.replace("https://", "wss://"), encoded_token)
+    } else if base_url.starts_with("http://") {
+        format!("{}/stream?token={}", base_url.replace("http://", "ws://"), encoded_token)
+    } else if base_url.starts_with("wss://") {
+        format!("{}/stream?token={}", base_url, encoded_token)
+    } else if base_url.starts_with("ws://") {
+        format!("{}/stream?token={}", base_url, encoded_token)
+    } else {
+        // 默认使用 wss
+        format!("wss://{}/stream?token={}", base_url, encoded_token)
+    };
+
+    eprintln!("构造的 WebSocket URL: {}", ws_url.replace(&encoded_token, "***"));
+    Ok(ws_url)
 }
 
 

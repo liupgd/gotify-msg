@@ -231,10 +231,33 @@ async function setupMessageListener() {
             // 获取超时时间
             const timeout = parseInt(document.getElementById('timeout').value) || 5;
             
-            // 提取消息字段（Gotify 可能使用不同的字段名）
-            const title = message?.title || message?.Title || '通知';
-            const msg = message?.message || message?.Message || message?.msg || '';
-            const priority = message?.priority || message?.Priority || 0;
+            // 提取消息字段（增强容错性）
+            const title = extractMessageField(message, ['title', 'Title', 'subject', 'Subject'], '通知');
+            const msg = extractMessageField(message, ['message', 'Message', 'msg', 'content', 'Content', 'body', 'Body'], '');
+            const priority = extractMessageField(message, ['priority', 'Priority', 'level', 'Level'], 0);
+            
+            function extractMessageField(obj, possibleKeys, defaultValue) {
+                if (!obj || typeof obj !== 'object') {
+                    return defaultValue;
+                }
+                
+                for (const key of possibleKeys) {
+                    if (obj.hasOwnProperty(key) && obj[key] !== null && obj[key] !== undefined) {
+                        const value = obj[key];
+                        // 如果是字符串且不为空，返回原值
+                        if (typeof value === 'string') {
+                            return value.trim() === '' ? defaultValue : value;
+                        }
+                        // 如果是数字，返回原值
+                        if (typeof value === 'number') {
+                            return value;
+                        }
+                        // 其他类型转换为字符串
+                        return String(value);
+                    }
+                }
+                return defaultValue;
+            }
             
             console.log('提取的字段 - title:', title, 'message:', msg, 'priority:', priority);
             

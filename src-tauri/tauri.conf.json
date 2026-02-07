@@ -5,7 +5,6 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "devUrl": "http://localhost:1420",
     "frontendDist": "../src"
   },
   "app": {
@@ -14,6 +13,7 @@
       {
         "label": "main",
         "title": "Gotify 客户端",
+        "url": "/index.html",
         "width": 600,
         "height": 500,
         "resizable": true,
