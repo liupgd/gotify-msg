@@ -86,7 +86,7 @@ fn play_notification_sound() {
     {
         // macOS: 使用 afplay
         let _ = std::process::Command::new("afplay")
-            .arg(&audio_path_str)
+            .arg(&*audio_path_str)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn();
