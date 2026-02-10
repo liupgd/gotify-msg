@@ -1,7 +1,7 @@
 use crate::config::{self, AppConfig};
 use crate::gotify::GotifyConnection;
 use crate::AppState;
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Manager};
 use std::sync::Arc;
 use anyhow::Result;
 

@@ -10,6 +10,10 @@ use tauri::tray::TrayIconBuilder;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+fn load_icon() -> tauri::image::Image<'static> {
+    tauri::include_image!("icons/icon.ico")
+}
+
 pub struct AppState {
     gotify_connection: Arc<Mutex<Option<Arc<gotify::GotifyConnection>>>>,
 }
@@ -24,6 +28,7 @@ fn main() {
             let menu = Menu::with_items(app, &[&show, &quit])?;
             
             let _tray = TrayIconBuilder::new()
+                .icon(load_icon())
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
