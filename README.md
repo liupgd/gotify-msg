@@ -8,7 +8,7 @@
 
 ## 📸 软件界面
 
-![软件界面截图](./gotify-msg-screenshot.png)
+![软件界面截图](./docs/gotify-msg-screenshot.png)
 
 ## 💻 跨平台支持
 
